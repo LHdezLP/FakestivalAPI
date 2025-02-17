@@ -5,15 +5,23 @@ import com.festival.tickets.entity.service.IUsuarioService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @CrossOrigin(origins = "*")
 @RestController
 public class UsuarioController {
+
     @Autowired
     IUsuarioService usuarioService;
+
+    @Autowired
+    private PasswordEncoder passwordEncoder;
+
     @GetMapping("/usuario")
     public List<Usuario> getAll() {
         return usuarioService.getAll();
@@ -23,7 +31,12 @@ public class UsuarioController {
 
     @PostMapping("/usuario")
     public ResponseEntity<Usuario> create(@RequestBody Usuario usuario) {
+
+        String encodedPassword = passwordEncoder.encode(usuario.getContrasena());
+        usuario.setContrasena(encodedPassword);
+
         Usuario nuevoUsuario = usuarioService.post(usuario);
+
         return ResponseEntity.status(HttpStatus.CREATED).body(nuevoUsuario);
     }
 
@@ -35,13 +48,27 @@ public class UsuarioController {
     @DeleteMapping("/usuario/{id}")
     public void delete(@PathVariable (value = "id") long id) {usuarioService.delete(id);}
 
-    @GetMapping("/usuario/contrasena/{contrasena}")
-    public ResponseEntity<Usuario> getUsuarioByContrasena(@PathVariable (value = "contrasena") String contrasena) {
-        Usuario usuario = usuarioService.getByContrasena(contrasena);
+
+    @PostMapping("user")
+    public ResponseEntity<?> login(@RequestParam("email") String email, @RequestParam("password") String pwd) {
+
+        Usuario usuario = usuarioService.getByEmail(email);
+
         if (usuario == null) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(null);
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Usuario no encontrado");
         }
-        return ResponseEntity.ok(usuario);
+
+        if (!passwordEncoder.matches(pwd, usuario.getContrasena())) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Contraseña incorrecta");
+        }
+
+        String token = usuario.getToken();
+
+        Map<String, Object> response = new HashMap<>();
+        response.put("token", token);
+        response.put("usuario", usuario);
+
+        return ResponseEntity.ok(response);
     }
 
 }
